@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 
 
 class SmartDatabase:
-    def __init__(self, data_path: str = "super_dataset.jsonl"):
+    def __init__(self, data_path: str = "dataset.jsonl"):
         """Инициализирует умную базу данных"""
         self.qa_pairs = []
         self.synonyms = self._create_synonyms()
