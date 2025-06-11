@@ -11,7 +11,6 @@ from datasets import Dataset
 import json
 import os
 
-
 class SmartTrainer:
     def __init__(self):
         self.model_name = "ai-forever/rugpt3small_based_on_gpt2"
@@ -19,10 +18,7 @@ class SmartTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def create_enhanced_dataset(self):
-        """Создает расширенный датасет с разговорными вариантами"""
-        print("📚 Создаем расширенный датасет...")
-
-        # Базовые данные
+        print("Создаем расширенный датасет...")
         base_data = []
         try:
             with open("dataset.jsonl", "r", encoding="utf-8") as f:
@@ -31,7 +27,6 @@ class SmartTrainer:
                         item = json.loads(line.strip())
                         base_data.append(item)
         except:
-            # Если файл не найден, создаем минимальный набор
             base_data = [
                 {"instruction": "Где находится общежитие ДС3?",
                  "output": "Общежитие №3 находится по адресу: г. Алматы, мкр №1 81А."},
@@ -44,15 +39,9 @@ class SmartTrainer:
                 {"instruction": "Мне не дали общежитие",
                  "output": "Рекомендую обратиться в деканат или отдел студенческого проживания для консультации и возможного пересмотра заявки."}
             ]
-
-        # Создаем разговорные варианты
         enhanced_data = []
-
-        # Добавляем оригинальные данные
         for item in base_data:
             enhanced_data.append(item)
-
-        # Добавляем разговорные варианты
         slang_variants = {
             "Где находится общежитие ДС3?": [
                 "Где ДС3?", "Че за адрес у ДС3?", "Куда ехать если дали ДС3?",
@@ -98,10 +87,7 @@ class SmartTrainer:
                 "Все общаги университета", "Список всех общежитий"
             ]
         }
-
-        # Добавляем разговорные варианты
         for original_question, variants in slang_variants.items():
-            # Находим оригинальный ответ
             original_answer = None
             for item in base_data:
                 if item['instruction'] == original_question:
@@ -115,7 +101,6 @@ class SmartTrainer:
                         "output": original_answer
                     })
 
-        # Добавляем примеры стоп-фраз для неизвестных вопросов
         unknown_questions = [
             "Привет как дела?",
             "Какая погода?",
@@ -141,38 +126,26 @@ class SmartTrainer:
                 "output": stop_answers[i % len(stop_answers)]
             })
 
-        print(f"✅ Создан расширенный датасет: {len(enhanced_data)} примеров")
+        print(f"Создан расширенный датасет: {len(enhanced_data)} примеров")
         return enhanced_data
 
     def prepare_training_data(self, enhanced_data):
-        """Подготавливает данные для обучения"""
         training_texts = []
-
         for item in enhanced_data:
-            # Формат для обучения
             text = f"Вопрос: {item['instruction']}\nОтвет: {item['output']}<|endoftext|>"
             training_texts.append({"text": text})
-
         return Dataset.from_list(training_texts)
 
     def setup_model_and_tokenizer(self):
-        """Настраивает модель и токенизатор"""
-        print("🧠 Настраиваем умную модель...")
-
-        # Загружаем токенизатор
+        print("Настраиваем умную модель...")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        # Загружаем модель
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
             torch_dtype=torch.float32,
             device_map=None
         )
-
-        # Настраиваем LoRA
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             r=16,
@@ -182,14 +155,11 @@ class SmartTrainer:
             bias="none",
             inference_mode=False,
         )
-
         self.model = get_peft_model(self.model, lora_config)
         self.model.print_trainable_parameters()
-
-        print("✅ Умная модель настроена!")
+        print("Умная модель настроена!")
 
     def tokenize_function(self, examples):
-        """Токенизирует примеры"""
         result = self.tokenizer(
             examples["text"],
             truncation=True,
@@ -197,35 +167,23 @@ class SmartTrainer:
             max_length=256,
             return_tensors=None
         )
-
         result["labels"] = result["input_ids"].copy()
         return result
 
     def train(self):
-        """Обучает умную модель"""
-        print("🚀 Начинаем обучение умной модели...")
-
-        # Создаем расширенный датасет
+        print("Начинаем обучение умной модели...")
         enhanced_data = self.create_enhanced_dataset()
-
-        # Подготавливаем данные для обучения
         dataset = self.prepare_training_data(enhanced_data)
-
-        # Настраиваем модель
         self.setup_model_and_tokenizer()
-
-        # Токенизируем данные
         tokenized_dataset = dataset.map(
             self.tokenize_function,
             batched=True,
             remove_columns=dataset.column_names
         )
-
-        # Настройки обучения
         training_args = TrainingArguments(
             output_dir=self.output_dir,
             overwrite_output_dir=True,
-            num_train_epochs=12,  # Больше эпох для лучшего качества
+            num_train_epochs=12,
             per_device_train_batch_size=1,
             gradient_accumulation_steps=8,
             warmup_steps=150,
@@ -243,44 +201,31 @@ class SmartTrainer:
             dataloader_num_workers=0,
             report_to=None,
         )
-
-        # Коллатор данных
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
             mlm=False,
             return_tensors="pt",
         )
-
-        # Создаем тренера
         trainer = Trainer(
             model=self.model,
             args=training_args,
             train_dataset=tokenized_dataset,
             data_collator=data_collator,
         )
-
-        # Обучаем!
-        print("🎯 Запускаем умное обучение...")
+        print("Запускаем умное обучение...")
         trainer.train()
-
-        # Сохраняем модель
-        print("💾 Сохраняем умную модель...")
+        print("Сохраняем умную модель...")
         trainer.save_model()
         self.tokenizer.save_pretrained(self.output_dir)
-
-        print("🎉 Умное обучение завершено!")
-        print(f"📁 Умная модель сохранена в: {self.output_dir}")
-
+        print("Умное обучение завершено!")
+        print(f"Умная модель сохранена в: {self.output_dir}")
 
 def main():
-    print("🧠 ОБУЧЕНИЕ УМНОЙ МОДЕЛИ С РАЗГОВОРНЫМ ЯЗЫКОМ")
+    print("ОБУЧЕНИЕ УМНОЙ МОДЕЛИ С РАЗГОВОРНЫМ ЯЗЫКОМ")
     print("=" * 70)
-
     trainer = SmartTrainer()
     trainer.train()
-
-    print("\n✅ УМНАЯ МОДЕЛЬ ГОТОВА!")
-
+    print("\n УМНАЯ МОДЕЛЬ ГОТОВА!")
 
 if __name__ == "__main__":
     main()

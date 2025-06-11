@@ -1,15 +1,10 @@
-"""
-Умная база данных с распознаванием разговорного языка
-"""
 import json
 import re
 from typing import Dict, List, Tuple, Optional
 from difflib import SequenceMatcher
 
-
 class SmartDatabase:
     def __init__(self, data_path: str = "dataset.jsonl"):
-        """Инициализирует умную базу данных"""
         self.qa_pairs = []
         self.synonyms = self._create_synonyms()
         self.slang_mapping = self._create_slang_mapping()
@@ -18,7 +13,6 @@ class SmartDatabase:
         self.create_smart_index()
 
     def _create_synonyms(self) -> Dict[str, List[str]]:
-        """Создает словарь синонимов"""
         return {
             'общежитие': [
                 'общага', 'общак', 'общежития', 'общаги', 'общагах', 'общаге',
@@ -42,9 +36,7 @@ class SmartDatabase:
         }
 
     def _create_slang_mapping(self) -> Dict[str, str]:
-        """Создает маппинг разговорных выражений"""
         return {
-            # Базовые сокращения
             'че': 'что',
             'чё': 'что',
             'чо': 'что',
@@ -108,7 +100,6 @@ class SmartDatabase:
         }
 
     def _create_stop_phrases(self) -> List[str]:
-        """Создает список стоп-фраз для неизвестных вопросов"""
         return [
             "Извините, я не знаю ответа на этот вопрос.",
             "К сожалению, у меня нет информации по этому вопросу.",
@@ -119,8 +110,7 @@ class SmartDatabase:
         ]
 
     def load_data(self, data_path: str):
-        """Загружает данные из JSONL файла"""
-        print(f"📚 Загружаем умные данные из {data_path}...")
+        print(f"Загружаем умные данные из {data_path}...")
 
         try:
             with open(data_path, 'r', encoding='utf-8') as f:
@@ -134,13 +124,12 @@ class SmartDatabase:
                             'normalized_question': self._normalize_text(item['instruction'])
                         })
 
-            print(f"✅ Загружено {len(self.qa_pairs)} умных вопросов и ответов")
+            print(f"Загружено {len(self.qa_pairs)} умных вопросов и ответов")
         except Exception as e:
-            print(f"❌ Ошибка загрузки данных: {e}")
+            print(f"Ошибка загрузки данных: {e}")
             self._create_fallback_data()
 
     def _create_fallback_data(self):
-        """Создает базовый набор данных"""
         fallback_data = [
             {
                 'question': 'Где находится общежитие ДС3?',
@@ -172,21 +161,16 @@ class SmartDatabase:
                 'keywords': self._extract_smart_keywords(item['question']),
                 'normalized_question': self._normalize_text(item['question'])
             })
-
-        print("⚠️ Создан базовый набор данных")
+        print("Создан базовый набор данных")
 
     def _normalize_text(self, text: str) -> str:
-        """Нормализует текст (убирает сленг, приводит к стандартному виду)"""
         text = text.lower().strip()
-
         # Заменяем сленг
         words = text.split()
         normalized_words = []
-
         for word in words:
             # Убираем знаки препинания
             clean_word = re.sub(r'[^\w]', '', word)
-
             # Заменяем сленг
             if clean_word in self.slang_mapping:
                 normalized_words.append(self.slang_mapping[clean_word])
@@ -196,15 +180,10 @@ class SmartDatabase:
         return ' '.join(normalized_words)
 
     def _extract_smart_keywords(self, text: str) -> List[str]:
-        """Извлекает умные ключевые слова с учетом синонимов"""
         normalized_text = self._normalize_text(text)
-
-        # Базовые ключевые слова
         stop_words = {'и', 'в', 'на', 'с', 'по', 'для', 'за', 'от', 'к', 'у', 'о', 'из', 'а', 'но', 'или', 'это', 'то',
                       'как', 'что'}
         words = [word for word in normalized_text.split() if word not in stop_words and len(word) > 1]
-
-        # Добавляем синонимы
         extended_keywords = set(words)
         for word in words:
             for main_word, synonyms in self.synonyms.items():
@@ -215,35 +194,28 @@ class SmartDatabase:
         return list(extended_keywords)
 
     def create_smart_index(self):
-        """Создает умный индекс для поиска"""
         self.keyword_index = {}
         self.question_similarity = {}
 
         for i, qa_pair in enumerate(self.qa_pairs):
-            # Индекс по ключевым словам
             for keyword in qa_pair['keywords']:
                 if keyword not in self.keyword_index:
                     self.keyword_index[keyword] = []
                 self.keyword_index[keyword].append(i)
 
-            # Индекс для поиска по схожести
             self.question_similarity[i] = qa_pair['normalized_question']
 
-        print(f"✅ Создан умный индекс из {len(self.keyword_index)} ключевых слов")
+        print(f"Создан умный индекс из {len(self.keyword_index)} ключевых слов")
 
     def _calculate_similarity(self, text1: str, text2: str) -> float:
-        """Вычисляет схожесть между двумя текстами"""
         return SequenceMatcher(None, text1, text2).ratio()
 
     def _get_stop_phrase(self) -> str:
-        """Возвращает случайную стоп-фразу"""
         import random
         return random.choice(self.stop_phrases)
 
     def find_smart_match(self, question: str) -> Tuple[str, float]:
-        """Находит умное совпадение для вопроса"""
         normalized_question = self._normalize_text(question)
-
         # 1. Проверяем точное совпадение
         for qa_pair in self.qa_pairs:
             if qa_pair['normalized_question'] == normalized_question:
@@ -258,36 +230,21 @@ class SmartDatabase:
         keywords = self._extract_smart_keywords(question)
         if not keywords:
             return self._get_stop_phrase(), 0.1
-
-        # Считаем совпадения
         scores = []
         for i, qa_pair in enumerate(self.qa_pairs):
             matched_keywords = set(keywords) & set(qa_pair['keywords'])
             keyword_score = len(matched_keywords) / max(len(keywords), len(qa_pair['keywords']))
-
-            # Добавляем бонус за схожесть текста
             similarity_score = self._calculate_similarity(normalized_question, qa_pair['normalized_question'])
-
-            # Итоговая оценка
             total_score = (keyword_score * 0.7) + (similarity_score * 0.3)
-
-            # Бонус за специальные ключевые слова
             special_keywords = ['дс3', 'дс2а', 'дс2б', 'емен', 'общежитие']
             for keyword in special_keywords:
                 if keyword in matched_keywords:
                     total_score += 0.2
-
             scores.append((i, total_score))
-
-        # Сортируем по убыванию оценки
         scores.sort(key=lambda x: x[1], reverse=True)
-
-        # Если лучшая оценка выше порога, возвращаем ответ
         if scores and scores[0][1] > 0.4:
             best_match_idx = scores[0][0]
             return self.qa_pairs[best_match_idx]['answer'], scores[0][1]
-
-        # Иначе возвращаем стоп-фразу
         return self._get_stop_phrase(), 0.1
 
     def _check_dormitory_patterns(self, normalized_question: str) -> Tuple[str, float]:
@@ -334,7 +291,6 @@ class SmartDatabase:
             if any(pattern in normalized_question for pattern in housing_patterns):
                 return 'Подать заявку можно через личный кабинет на сайте, заполнив анкету и приложив необходимые документы.', 0.9
 
-        # Общие вопросы о общежитиях
         general_housing_questions = [
             ('какие общаги',
              'В университете есть общежития: ДС3 (мкр №1 81А), ДС2А (Таугуль 32), ДС2б (Таугуль 34), Емен (мкр №10 26/1).'),
@@ -346,34 +302,23 @@ class SmartDatabase:
             ('все общежития',
              'В университете есть общежития: ДС3 (мкр №1 81А), ДС2А (Таугуль 32), ДС2б (Таугуль 34), Емен (мкр №10 26/1).')
         ]
-
         for pattern, answer in general_housing_questions:
             if pattern in normalized_question:
                 return answer, 0.9
-
         return "", 0.0
 
     def get_smart_answer(self, question: str) -> Tuple[str, float]:
-        """Получает умный ответ на вопрос"""
-        # Проверяем на пустой вопрос
         if not question.strip():
             return self._get_stop_phrase(), 0.1
-
-        # Проверяем на слишком короткий вопрос
         if len(question.strip()) < 3:
             return self._get_stop_phrase(), 0.1
-
-        # Ищем умное совпадение
         answer, confidence = self.find_smart_match(question)
-
-        # Если уверенность слишком низкая, возвращаем стоп-фразу
         if confidence < 0.3:
             return self._get_stop_phrase(), 0.1
 
         return answer, confidence
 
 
-# Тестирование умной базы данных
 if __name__ == "__main__":
     db = SmartDatabase()
 
@@ -391,10 +336,10 @@ if __name__ == "__main__":
         "Какая погода?"
     ]
 
-    print("\n🧪 ТЕСТИРОВАНИЕ УМНОЙ БАЗЫ ДАННЫХ:")
+    print("\n ТЕСТИРОВАНИЕ УМНОЙ БАЗЫ ДАННЫХ:")
     for question in test_questions:
         answer, confidence = db.get_smart_answer(question)
-        print(f"❓ {question}")
-        print(f"🤖 {answer}")
-        print(f"📊 Уверенность: {confidence:.2f}")
+        print(f"Вопрос:  {question}")
+        print(f"Ответ:  {answer}")
+        print(f" Уверенность: {confidence:.2f}")
         print("-" * 50)
