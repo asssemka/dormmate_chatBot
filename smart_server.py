@@ -12,7 +12,7 @@ from smart_database import SmartDatabase
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="🧠 УМНЫЙ AI ЧатБот с Разговорным Языком", version="8.0.0")
+app = FastAPI(title=" AI ЧатБот с Разговорным Языком", version="8.0.0")
 
 
 class ChatRequest(BaseModel):
@@ -28,7 +28,7 @@ class ChatResponse(BaseModel):
     confidence: float
     model_info: str
     generation_time: float
-    source: str  # "database" или "model"
+    source: str
 
 
 class SmartChatbot:
@@ -80,43 +80,29 @@ class SmartChatbot:
             r'endof.*?', r'enabled.*?', r'Beta.*?',
             r'Factory.*?', r'Container.*?', r'\[.*?\]'
         ]
-
         for artifact in artifacts:
             text = re.sub(artifact, '', text, flags=re.IGNORECASE)
-
-        # Убираем лишние символы и пробелы
         text = re.sub(r'[^\w\s.,!?:;№()-]', '', text)
         text = re.sub(r'\s+', ' ', text)
-
-        # Берем только первое предложение если оно содержательное
         sentences = text.split('.')
         if sentences and len(sentences[0].strip()) > 10:
             result = sentences[0].strip() + '.'
         else:
             result = text.strip()
-
         return result
 
     def generate_model_response(self, question: str, max_tokens: int = 100) -> tuple:
-        """Генерирует ответ с помощью модели"""
         if self.model is None or self.tokenizer is None:
             return "Модель не загружена.", 0.0, 0.0
-
         start_time = time.time()
-
         try:
-            # Промпт
             prompt = f"Вопрос: {question}\nОтвет:"
-
-            # Токенизируем
             inputs = self.tokenizer(
                 prompt,
                 return_tensors="pt",
                 truncation=True,
                 max_length=200
             ).to(self.device)
-
-            # Генерируем
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
@@ -132,61 +118,39 @@ class SmartChatbot:
                     early_stopping=True
                 )
 
-            # Декодируем
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-            # Извлекаем ответ
             if "Ответ:" in response:
                 answer = response.split("Ответ:")[-1].strip()
             else:
                 answer = response.replace(prompt, "").strip()
-
-            # Очищаем ответ
             answer = self.clean_response(answer)
-
             generation_time = time.time() - start_time
-
             return answer, 0.6, generation_time
-
         except Exception as e:
-            logger.error(f"❌ Ошибка генерации: {e}")
+            logger.error(f" Ошибка генерации: {e}")
             return "Извините, произошла техническая ошибка.", 0.1, 0.0
 
     def get_smart_answer(self, question: str, max_tokens: int = 100) -> tuple:
-        """Получает умный ответ с использованием базы данных и модели"""
         start_time = time.time()
-
-        # Сначала пробуем умную базу данных
         db_answer, db_confidence = self.database.get_smart_answer(question)
-
-        # Если база данных дала хороший ответ, используем его
         if db_confidence >= 0.7:
             generation_time = time.time() - start_time
             return db_answer, db_confidence, generation_time, "database"
-
-        # Если база данных дала стоп-фразу, проверяем модель
         if db_confidence <= 0.2 and self.model is not None:
             model_answer, model_confidence, model_time = self.generate_model_response(question, max_tokens)
-
-            # Если модель дала лучший ответ
             if model_confidence > db_confidence and len(model_answer) > 10:
                 return model_answer, model_confidence, model_time, "model"
-
-        # Иначе используем ответ из базы данных (включая стоп-фразы)
         generation_time = time.time() - start_time
         return db_answer, db_confidence, generation_time, "database"
 
 
-# Создаем умного бота
 chatbot = SmartChatbot()
-
-
 @app.get("/")
 def root():
     import os
     model_type = "УМНАЯ МОДЕЛЬ" if os.path.exists("./smart_model") else "Умная база данных + Базовая модель"
     return {
-        "message": "🧠 УМНЫЙ AI ЧатБот с разговорным языком работает!",
+        "message": "AI ЧатБот с разговорным языком работает!",
         "model_info": model_type,
         "device": str(chatbot.device),
         "university": "Алматы",
@@ -198,9 +162,8 @@ def root():
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    """Отвечает на вопросы с пониманием разговорного языка"""
     try:
-        logger.info(f"📝 Умный вопрос от {request.user_id}: {request.question}")
+        logger.info(f" Умный вопрос от {request.user_id}: {request.question}")
 
         answer, confidence, gen_time, source = chatbot.get_smart_answer(
             request.question,
@@ -219,7 +182,7 @@ def chat(request: ChatRequest):
         )
 
     except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")
+        logger.error(f" Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
